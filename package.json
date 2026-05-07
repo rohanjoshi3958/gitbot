@@ -1,0 +1,95 @@
+{
+  "name": "git-commit-message-button",
+  "displayName": "Git Commit Message Button",
+  "description": "Generate detailed git commit messages with one click.",
+  "version": "0.0.1",
+  "publisher": "local-dev",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Source Control"
+  ],
+  "keywords": [
+    "git",
+    "commit",
+    "source-control",
+    "conventional-commits",
+    "anthropic"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitCommitMessageButton.generateCommitMessage",
+        "title": "Generate Commit Message"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "gitCommitMessageButton.generateCommitMessage",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gitCommitMessageButton.generateCommitMessage",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git Commit Message Button",
+      "properties": {
+        "gitCommitMessageButton.maxDiffBytes": {
+          "type": "number",
+          "default": 120000,
+          "description": "Maximum git diff bytes read while generating a message."
+        },
+        "gitCommitMessageButton.includeBody": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include a detailed body beneath the commit subject."
+        },
+        "gitCommitMessageButton.useAnthropic": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Anthropic model for commit message generation."
+        },
+        "gitCommitMessageButton.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key used when useAnthropic is enabled."
+        },
+        "gitCommitMessageButton.anthropicModel": {
+          "type": "string",
+          "default": "claude-3-5-sonnet-latest",
+          "description": "Anthropic model id for message generation."
+        },
+        "gitCommitMessageButton.anthropicMaxTokens": {
+          "type": "number",
+          "default": 320,
+          "description": "Max response tokens for Anthropic completion."
+        },
+        "gitCommitMessageButton.maxFileContentChars": {
+          "type": "number",
+          "default": 5000,
+          "description": "Max characters per previous/current file snapshot sent to Anthropic."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "echo \"No lint configured\"",
+    "package": "vsce package",
+    "publish:patch": "vsce publish patch",
+    "publish:minor": "vsce publish minor",
+    "publish:major": "vsce publish major"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.6.2"
+  }
+}
