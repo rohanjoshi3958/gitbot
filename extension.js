@@ -13,7 +13,6 @@ function activate(context) {
           vscode.window.showErrorMessage("Open a git project folder first.");
           return;
         }
-        console.log("test");
 
         const cwd = workspaceFolder.uri.fsPath;
         if (!(await isGitRepo(cwd))) {
