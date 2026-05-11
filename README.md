@@ -2,6 +2,10 @@
 
 Generate a detailed commit message with one click and auto-fill the Source Control input.
 
+## Demo (video)
+
+![Demo](./demo.gif)
+
 ## Features
 
 - Adds `Generate Commit Message` command.
