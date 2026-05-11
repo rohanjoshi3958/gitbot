@@ -3,12 +3,12 @@
   "displayName": "Git Commit Message Button",
   "icon": "media/icon.png",
   "description": "Generate detailed git commit messages with one click.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "rj037",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rj037/git-commit-message-button.git"
+    "url": "https://github.com/rohanjoshi3958/gitbot.git"
   },
   "engines": {
     "vscode": "^1.85.0"
