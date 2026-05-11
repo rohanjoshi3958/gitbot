@@ -2,7 +2,7 @@
   "name": "git-commit-message-button",
   "displayName": "Git Commit Message Button",
   "description": "Generate detailed git commit messages with one click.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "rj037",
   "license": "MIT",
   "engines": {
