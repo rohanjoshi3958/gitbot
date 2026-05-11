@@ -3,13 +3,13 @@
   "displayName": "Git Commit Message Button",
   "description": "Generate detailed git commit messages with one click.",
   "version": "0.0.1",
-  "publisher": "local-dev",
+  "publisher": "rj037",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Source Control"
+    "SCM Providers"
   ],
   "keywords": [
     "git",
