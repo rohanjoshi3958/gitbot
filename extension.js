@@ -2,8 +2,56 @@ const vscode = require("vscode");
 const cp = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
+const { buildCommitPrompt, sanitizeCommitMessage } = require("./prompt");
+
+let extensionInstallPath = "";
+
+function loadServerEnv(extensionPath) {
+  const envPath = path.join(extensionPath, "server", ".env");
+  if (!fs.existsSync(envPath)) {
+    return {};
+  }
+  const env = {};
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+  return env;
+}
+
+function resolveAiSettings(config) {
+  const serverEnv = loadServerEnv(extensionInstallPath);
+  const anthropicApiKey =
+    config.get("anthropicApiKey", "") || serverEnv.ANTHROPIC_API_KEY || "";
+  let hostedProxyUrl = String(config.get("hostedProxyUrl", "")).trim().replace(/\/$/, "");
+  const hostedProxyAccessToken =
+    config.get("hostedProxyAccessToken", "") || serverEnv.PROXY_ACCESS_TOKEN || "";
+
+  if (!hostedProxyUrl && serverEnv.ANTHROPIC_API_KEY) {
+    const port = serverEnv.PORT || "8787";
+    hostedProxyUrl = `http://127.0.0.1:${port}`;
+  }
+
+  return { anthropicApiKey, hostedProxyUrl, hostedProxyAccessToken, serverEnv };
+}
 
 function activate(context) {
+  extensionInstallPath = context.extensionPath;
   const disposable = vscode.commands.registerCommand(
     "gitCommitMessageButton.generateCommitMessage",
     async () => {
@@ -36,8 +84,10 @@ function activate(context) {
           .getConfiguration("gitCommitMessageButton")
           .get("includeBody", true);
         const config = vscode.workspace.getConfiguration("gitCommitMessageButton");
+        const generationMode = config.get("generationMode", "hosted");
         const useAnthropic = config.get("useAnthropic", true);
-        const anthropicApiKey = config.get("anthropicApiKey", "");
+        const { anthropicApiKey, hostedProxyUrl, hostedProxyAccessToken } =
+          resolveAiSettings(config);
 
         const diffResult = await runGit(["diff", "--staged", "--", "."], cwd, maxDiffBytes);
         const fallbackDiff = diffResult.stdout.trim()
@@ -61,17 +111,52 @@ function activate(context) {
 
         let message = "";
         let generatedBy = "local";
-        const shouldUseAnthropic = useAnthropic || Boolean(anthropicApiKey);
-        if (shouldUseAnthropic) {
+
+        if (generationMode === "hosted" && hostedProxyUrl) {
           try {
-            message = await generateCommitMessageWithAnthropic(changeContext);
+            message = await generateCommitMessageViaProxy(
+              changeContext,
+              hostedProxyUrl,
+              hostedProxyAccessToken
+            );
+            generatedBy = "ai";
+          } catch (proxyError) {
+            if (anthropicApiKey) {
+              try {
+                message = await generateCommitMessageWithAnthropic(
+                  changeContext,
+                  anthropicApiKey
+                );
+                generatedBy = "claude";
+              } catch (_directError) {
+                vscode.window.showWarningMessage(
+                  `Hosted AI failed, using local fallback: ${proxyError?.message || proxyError}`
+                );
+              }
+            } else {
+              vscode.window.showWarningMessage(
+                `Hosted AI failed, using local fallback: ${proxyError?.message || proxyError}`
+              );
+            }
+          }
+        } else if (anthropicApiKey && (generationMode === "anthropic" || useAnthropic)) {
+          try {
+            message = await generateCommitMessageWithAnthropic(
+              changeContext,
+              anthropicApiKey
+            );
             generatedBy = "claude";
           } catch (aiError) {
             vscode.window.showWarningMessage(
               `Anthropic generation failed, using local fallback: ${aiError?.message || aiError}`
             );
           }
+        } else if (generationMode === "hosted" && !hostedProxyUrl) {
+          vscode.window.showWarningMessage(
+            "Hosted mode: set hostedProxyUrl, add server/.env, or run the proxy (npm start in server/). Using local fallback."
+          );
         }
+
         if (!message) {
           message = generateCommitMessage(changeContext);
         }
@@ -284,52 +369,49 @@ function trimLength(str, max) {
   return `${str.slice(0, max - 1)}…`;
 }
 
-async function generateCommitMessageWithAnthropic({
-  stagedFiles,
-  unstagedFiles,
-  untrackedFiles,
-  diffText,
-  includeBody,
-  fileComparisons
-}) {
+async function generateCommitMessageViaProxy(changeContext, proxyBaseUrl, accessToken) {
+  const headers = { "content-type": "application/json" };
+  if (accessToken) {
+    headers.authorization = `Bearer ${accessToken}`;
+  }
+
+  const res = await fetch(`${proxyBaseUrl}/api/commit-message`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(changeContext)
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try {
+      detail = JSON.parse(text).error || text;
+    } catch (_error) {
+      /* use raw text */
+    }
+    throw new Error(`Proxy error ${res.status}: ${detail}`);
+  }
+
+  const data = await res.json();
+  const message = sanitizeCommitMessage(data.message);
+  if (!message) {
+    throw new Error("Proxy returned an empty message.");
+  }
+  return message;
+}
+
+async function generateCommitMessageWithAnthropic(changeContext, apiKey) {
   const config = vscode.workspace.getConfiguration("gitCommitMessageButton");
-  const apiKey = config.get("anthropicApiKey", "");
   const model = config.get("anthropicModel", "claude-3-5-sonnet-latest");
   const maxTokens = config.get("anthropicMaxTokens", 320);
 
   if (!apiKey) {
-    throw new Error("Missing Anthropic key: set gitCommitMessageButton.anthropicApiKey.");
+    throw new Error(
+      "Missing Anthropic key: set gitCommitMessageButton.anthropicApiKey or server/.env ANTHROPIC_API_KEY."
+    );
   }
 
-  const prompt = [
-    "Write a high quality git commit message from this change context.",
-    "Use conventional commits style in subject: type(scope): short summary.",
-    "Subject max 72 chars.",
-    "Ensure the subject and body describe the same scope of changes.",
-    "If multiple files or areas changed, use a broad subject that covers all changes.",
-    "Do not use a single-file/backend-only subject when frontend or other areas also changed.",
-    "Only use a narrow subject when exactly one logical change area is present.",
-    includeBody
-      ? "Then include 2-3 full sentences summarizing only what changed inside files."
-      : "Return subject only.",
-    "Compare previous and current file snapshots explicitly.",
-    "Do not infer product impact, intent, or outcomes. Only state concrete file/content changes.",
-    "",
-    `Staged files (${stagedFiles.length}):`,
-    stagedFiles.join("\n") || "(none)",
-    "",
-    `Unstaged files (${unstagedFiles.length}):`,
-    unstagedFiles.join("\n") || "(none)",
-    "",
-    `Untracked files (${untrackedFiles.length}):`,
-    untrackedFiles.join("\n") || "(none)",
-    "",
-    "Per-file previous vs new snapshots:",
-    formatFileComparisonsForPrompt(fileComparisons),
-    "",
-    "Diff:",
-    diffText.slice(0, 120000)
-  ].join("\n");
+  const prompt = buildCommitPrompt(changeContext);
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -391,22 +473,6 @@ async function buildFileComparisons(cwd, files) {
   return comparisons;
 }
 
-function formatFileComparisonsForPrompt(fileComparisons) {
-  if (!fileComparisons?.length) return "(none)";
-  return fileComparisons
-    .map(
-      (item) => [
-        `FILE: ${item.file}`,
-        "PREVIOUS:",
-        item.previous || "(empty)",
-        "CURRENT:",
-        item.current || "(empty)",
-        "---"
-      ].join("\n")
-    )
-    .join("\n");
-}
-
 function safeReadFile(filePath, maxChars) {
   try {
     const content = fs.readFileSync(filePath, "utf8");
@@ -431,18 +497,6 @@ function runGitAllowFailure(args, cwd, maxBuffer = 1024 * 1024) {
       }
     );
   });
-}
-
-function sanitizeCommitMessage(raw) {
-  let text = String(raw || "").trim();
-
-  // Remove wrapping markdown fences like ``` or ```text.
-  if (text.startsWith("```")) {
-    text = text.replace(/^```[a-zA-Z0-9_-]*\s*\n?/, "");
-    text = text.replace(/\n?```$/, "");
-  }
-
-  return text.trim();
 }
 
 module.exports = {

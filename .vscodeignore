@@ -3,4 +3,6 @@
 **/node_modules/**
 **/.vscode-test/**
 **/.venv/**
+server/**
 palette.png
+howtodo.mov

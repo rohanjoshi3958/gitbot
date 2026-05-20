@@ -3,7 +3,7 @@
   "displayName": "Git Commit Message Button",
   "icon": "media/icon.png",
   "description": "Generate detailed git commit messages with one click.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "rj037",
   "license": "MIT",
   "repository": {
@@ -48,6 +48,22 @@
     "configuration": {
       "title": "Git Commit Message Button",
       "properties": {
+        "gitCommitMessageButton.generationMode": {
+          "type": "string",
+          "enum": ["hosted", "anthropic", "local"],
+          "default": "hosted",
+          "description": "hosted = your proxy server (no user API key); anthropic = user's own key; local = offline template only."
+        },
+        "gitCommitMessageButton.hostedProxyUrl": {
+          "type": "string",
+          "default": "",
+          "description": "HTTPS URL of your deployed proxy (e.g. https://your-app.onrender.com). Required for hosted mode."
+        },
+        "gitCommitMessageButton.hostedProxyAccessToken": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Bearer token matching PROXY_ACCESS_TOKEN on your server (not your Anthropic key)."
+        },
         "gitCommitMessageButton.maxDiffBytes": {
           "type": "number",
           "default": 120000,
