@@ -3,7 +3,7 @@
   "displayName": "Git Commit Message Button",
   "icon": "media/icon.png",
   "description": "Generate detailed git commit messages with one click.",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "rj037",
   "license": "MIT",
   "repository": {
