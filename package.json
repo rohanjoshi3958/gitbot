@@ -86,7 +86,7 @@
         },
         "gitCommitMessageButton.anthropicModel": {
           "type": "string",
-          "default": "claude-3-5-sonnet-latest",
+          "default": "claude-haiku-4-5-20251001",
           "description": "Anthropic model id for message generation."
         },
         "gitCommitMessageButton.anthropicMaxTokens": {

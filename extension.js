@@ -402,7 +402,7 @@ async function generateCommitMessageViaProxy(changeContext, proxyBaseUrl, access
 
 async function generateCommitMessageWithAnthropic(changeContext, apiKey) {
   const config = vscode.workspace.getConfiguration("gitCommitMessageButton");
-  const model = config.get("anthropicModel", "claude-3-5-sonnet-latest");
+  const model = config.get("anthropicModel", "claude-haiku-4-5-20251001");
   const maxTokens = config.get("anthropicMaxTokens", 320);
 
   if (!apiKey) {
