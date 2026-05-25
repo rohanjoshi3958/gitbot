@@ -34,6 +34,8 @@ function buildCommitPrompt({
       ? "Then include 2-3 full sentences summarizing only what changed inside files."
       : "Return subject only.",
     "Compare previous and current file snapshots explicitly.",
+    "The Diff section is unified git diff vs the last commit: lines starting with + were added, lines starting with - were removed.",
+    "Never describe an addition as a removal (or vice versa). If Diff and snapshots disagree, trust the Diff.",
     "Do not infer product impact, intent, or outcomes. Only state concrete file/content changes.",
     "",
     `Staged files (${stagedFiles.length}):`,

@@ -89,15 +89,12 @@ function activate(context) {
         const { anthropicApiKey, hostedProxyUrl, hostedProxyAccessToken } =
           resolveAiSettings(config);
 
-        const diffResult = await runGit(["diff", "--staged", "--", "."], cwd, maxDiffBytes);
-        const fallbackDiff = diffResult.stdout.trim()
-          ? diffResult.stdout
-          : (await runGit(["diff", "--", "."], cwd, maxDiffBytes)).stdout;
+        const diffText = await collectDiffText(cwd, maxDiffBytes);
         const changeContext = {
           stagedFiles: toFileList(staged.stdout),
           unstagedFiles: toFileList(unstaged.stdout),
           untrackedFiles: toFileList(untracked.stdout),
-          diffText: fallbackDiff,
+          diffText,
           includeBody,
           fileComparisons: await buildFileComparisons(
             cwd,
@@ -204,6 +201,19 @@ function deactivate() {}
 async function isGitRepo(cwd) {
   const result = await runGit(["rev-parse", "--is-inside-work-tree"], cwd);
   return result.code === 0 && result.stdout.trim() === "true";
+}
+
+/** All changes vs last commit (staged + unstaged). Staged-only diff omits unstaged edits. */
+async function collectDiffText(cwd, maxDiffBytes) {
+  const headDiff = await runGitAllowFailure(["diff", "HEAD", "--", "."], cwd, maxDiffBytes);
+  if (headDiff.code === 0 && headDiff.stdout.trim()) {
+    return headDiff.stdout;
+  }
+  const staged = await runGit(["diff", "--staged", "--", "."], cwd, maxDiffBytes);
+  if (staged.stdout.trim()) {
+    return staged.stdout;
+  }
+  return (await runGit(["diff", "--", "."], cwd, maxDiffBytes)).stdout;
 }
 
 function runGit(args, cwd, maxBuffer = 1024 * 1024) {
