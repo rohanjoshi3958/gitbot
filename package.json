@@ -56,7 +56,7 @@
         },
         "gitCommitMessageButton.hostedProxyUrl": {
           "type": "string",
-          "default": "",
+          "default": "https://gitbot-production-628c.up.railway.app/",
           "description": "HTTPS URL of your deployed proxy (e.g. https://your-app.onrender.com). Required for hosted mode."
         },
         "gitCommitMessageButton.hostedProxyAccessToken": {
