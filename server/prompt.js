@@ -14,6 +14,34 @@ function formatFileComparisonsForPrompt(fileComparisons) {
     .join("\n");
 }
 
+function summarizeDiffForPrompt(diffText) {
+  const lines = String(diffText).split("\n");
+  const added = [];
+  const removed = [];
+  for (const line of lines) {
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      added.push(line.slice(1).trim());
+    } else if (line.startsWith("-") && !line.startsWith("---")) {
+      removed.push(line.slice(1).trim());
+    }
+  }
+  const parts = [
+    `Diff summary (authoritative): ${added.length} line(s) added, ${removed.length} line(s) removed.`
+  ];
+  if (added.length) {
+    parts.push(`Added examples: ${added.slice(0, 10).join(" | ")}`);
+  }
+  if (removed.length) {
+    parts.push(`Removed examples: ${removed.slice(0, 10).join(" | ")}`);
+  }
+  if (added.length && !removed.length) {
+    parts.push("Primary change type: ADDITIONS only — subject/body must describe what was added, not removed.");
+  } else if (removed.length && !added.length) {
+    parts.push("Primary change type: DELETIONS only — subject/body must describe what was removed, not added.");
+  }
+  return parts.join("\n");
+}
+
 function buildCommitPrompt({
   stagedFiles,
   unstagedFiles,
@@ -22,21 +50,33 @@ function buildCommitPrompt({
   includeBody,
   fileComparisons
 }) {
+  const diff = String(diffText).slice(0, 120000);
+  const outputRules = includeBody
+    ? [
+        "OUTPUT FORMAT (required):",
+        "Line 1: subject only (conventional commit), max 72 characters.",
+        "Line 2: empty.",
+        "Line 3+: body only (2-3 sentences).",
+        "The subject and body MUST agree: same action (add/remove/update) and same scope.",
+        "Do not say something was removed in the subject and added in the body (or the reverse).",
+        "Do not open the body by restating or contradicting the subject."
+      ]
+    : ["OUTPUT FORMAT: return the subject line only (max 72 characters), nothing else."];
+
   return [
-    "Write a high quality git commit message from this change context.",
-    "Use conventional commits style in subject: type(scope): short summary.",
-    "Subject max 72 chars.",
-    "Ensure the subject and body describe the same scope of changes.",
-    "If multiple files or areas changed, use a broad subject that covers all changes.",
-    "Do not use a single-file/backend-only subject when frontend or other areas also changed.",
-    "Only use a narrow subject when exactly one logical change area is present.",
-    includeBody
-      ? "Then include 2-3 full sentences summarizing only what changed inside files."
-      : "Return subject only.",
-    "Compare previous and current file snapshots explicitly.",
-    "The Diff section is unified git diff vs the last commit: lines starting with + were added, lines starting with - were removed.",
-    "Never describe an addition as a removal (or vice versa). If Diff and snapshots disagree, trust the Diff.",
-    "Do not infer product impact, intent, or outcomes. Only state concrete file/content changes.",
+    "Write a git commit message from the change context below.",
+    "",
+    ...outputRules,
+    "",
+    "Rules:",
+    "- The Diff and Diff summary are authoritative (+ added, - removed).",
+    "- Use the Diff summary counts before writing; do not invert add vs remove.",
+    "- File snapshots are supplementary; if they disagree with Diff, trust Diff.",
+    "- Use conventional commits: type(scope): short summary.",
+    "- If multiple areas changed, use a broad subject covering all of them.",
+    "- State only concrete code changes visible in Diff; no intent or impact.",
+    "",
+    summarizeDiffForPrompt(diff),
     "",
     `Staged files (${stagedFiles.length}):`,
     stagedFiles.join("\n") || "(none)",
@@ -47,11 +87,11 @@ function buildCommitPrompt({
     `Untracked files (${untrackedFiles.length}):`,
     untrackedFiles.join("\n") || "(none)",
     "",
-    "Per-file previous vs new snapshots:",
+    "Per-file snapshots (supplementary):",
     formatFileComparisonsForPrompt(fileComparisons),
     "",
     "Diff:",
-    String(diffText).slice(0, 120000)
+    diff
   ].join("\n");
 }
 
@@ -67,5 +107,6 @@ function sanitizeCommitMessage(raw) {
 module.exports = {
   buildCommitPrompt,
   sanitizeCommitMessage,
-  formatFileComparisonsForPrompt
+  formatFileComparisonsForPrompt,
+  summarizeDiffForPrompt
 };
